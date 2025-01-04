@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PAO Training Stats</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto px-4 py-8">
+        <nav class="mb-8">
+            <a href="index.html" class="btn btn-primary inline-block">← Back to Trainer</a>
+        </nav>
+
+        <div class="bg-white rounded-xl shadow-lg p-8">
+            <h1 class="text-3xl font-bold text-gray-800 mb-6">Training Statistics</h1>
+            
+            <div id="stats" class="space-y-8">
+                <!-- Stats will be inserted here -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function formatDate(dateString) {
+            return new Date(dateString).toLocaleString();
+        }
+
+        function sortTable(n, type) {
+            const table = document.getElementById("stats-body");
+            const rows = Array.from(table.getElementsByTagName("tr"));
+            let ascending = table.getAttribute("data-sort-col") == n && table.getAttribute("data-sort-dir") == "asc";
+
+            rows.sort((a, b) => {
+                const tdA = a.getElementsByTagName("td")[n].innerText;
+                const tdB = b.getElementsByTagName("td")[n].innerText;
+
+                if (type === "date") {
+                    return (new Date(tdA) - new Date(tdB)) * (ascending ? 1 : -1);
+                } else {
+                    return tdA.localeCompare(tdB) * (ascending ? 1 : -1);
+                }
+            });
+
+            table.innerHTML = "";
+            rows.forEach(r => table.appendChild(r));
+            table.setAttribute("data-sort-col", n);
+            table.setAttribute("data-sort-dir", ascending ? "desc" : "asc");
+        }
+
+        function renderStats() {
+            const statsDiv = document.getElementById('stats');
+            const stats = JSON.parse(localStorage.getItem('paoTrainerStats') || '{"sessions": []}');
+
+            // Sort all hands in descending order by time
+            const allHands = stats.sessions.reduce((acc, session) => {
+                return acc.concat(session.hands);
+            }, []).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+            if (!allHands.length) {
+                statsDiv.innerHTML = '<p class="text-gray-500">No training sessions recorded yet.</p>';
+                return;
+            }
+
+            const correctCount = allHands.filter(h => h.isCorrect).length;
+            const incorrectCount = allHands.length - correctCount;
+            const correctRatio = Math.round((correctCount / allHands.length) * 100);
+
+            let message = "";
+            let bgClass = "";
+            if (correctCount > incorrectCount) {
+                message = "Nice job, memory wizard!";
+                bgClass = "bg-green-100 border-green-400 text-green-800";
+            } else if (correctCount < incorrectCount) {
+                message = "Keep at it, you'll get there!";
+                bgClass = "bg-red-100 border-red-400 text-red-800";
+            } else {
+                message = "Perfectly balanced, as all things should be.";
+                bgClass = "bg-blue-100 border-blue-400 text-blue-800";
+            }
+
+            statsDiv.innerHTML = `
+                <div class="overflow-x-auto">
+                    <table class="min-w-full">
+                        <thead>
+                            <tr class="bg-gray-50">
+                                <th onclick="sortTable(0, 'date')" class="px-4 py-2 text-left">Time</th>
+                                <th onclick="sortTable(1, 'text')" class="px-4 py-2 text-left">Cards</th>
+                                <th onclick="sortTable(2, 'text')" class="px-4 py-2 text-left">Scene</th>
+                                <th onclick="sortTable(3, 'text')" class="px-4 py-2 text-left">Result</th>
+                            </tr>
+                        </thead>
+                        <tbody id="stats-body" data-sort-col="0" data-sort-dir="desc" class="divide-y divide-gray-200">
+                            ${allHands.map(hand => `
+                                <tr class="${hand.isCorrect ? 'bg-green-50' : 'bg-red-50'}">
+                                    <td class="px-4 py-2 text-sm text-gray-500">${new Date(hand.timestamp).toLocaleString()}</td>
+                                    <td class="px-4 py-2">${hand.cards.join(' → ')}</td>
+                                    <td class="px-4 py-2">${hand.scene}</td>
+                                    <td class="px-4 py-2">
+                                        <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                                            hand.isCorrect ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                                        }">
+                                            ${hand.isCorrect ? '✓ Correct' : '✗ Incorrect'}
+                                        </span>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="mt-4 p-4 border-l-4 ${bgClass}">
+                    <p class="text-base mb-2">
+                        Correct: ${correctCount}<br>
+                        Incorrect: ${incorrectCount}<br>
+                        Correct Ratio: ${correctRatio}%
+                    </p>
+                    <p class="font-semibold">${message}</p>
+                </div>
+            `;
+        }
+
+        // Initial render
+        renderStats();
+
+        // Update when storage changes
+        window.addEventListener('storage', renderStats);
+    </script>
+</body>
+</html>

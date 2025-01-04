@@ -452,9 +452,43 @@
         return null;
       };
 
+      // Add stats management functions
+      const STORAGE_LIMIT = 9 * 1024 * 1024; // 9MB in bytes
+      const STATS_KEY = 'paoTrainerStats';
+
+      const saveStats = (stats) => {
+        const serialized = JSON.stringify(stats);
+        const size = new Blob([serialized]).size;
+        
+        if (size > STORAGE_LIMIT) {
+          // Remove oldest sessions until we're under limit
+          while (stats.sessions.length > 1 && new Blob([JSON.stringify(stats)]).size > STORAGE_LIMIT) {
+            stats.sessions.shift();
+          }
+          alert('Some older session data was removed to stay within storage limits');
+        }
+        
+        localStorage.setItem(STATS_KEY, serialized);
+      };
+
+      const loadStats = () => {
+        const saved = localStorage.getItem(STATS_KEY);
+        if (saved) {
+          return JSON.parse(saved);
+        }
+        return { sessions: [] };
+      };
+
       function CardMemoryApp() {
         // Add reset success state
         const [showResetSuccess, setShowResetSuccess] = React.useState(false);
+
+        // Add stats state
+        const [sessionStats, setSessionStats] = React.useState({
+          startTime: new Date().toISOString(),
+          hands: [],
+          currentHand: 1
+        });
 
         // Modify reset function
         const resetEverything = () => {
@@ -593,6 +627,36 @@
          * @param {boolean} isCorrect - Whether the user got the answer right
          */
         const checkAnswer = (isCorrect) => {
+          // Record the hand
+          const handStats = {
+            handNumber: sessionStats.currentHand,
+            cards: currentSet.cards,
+            scene: currentSet.scene,
+            isCorrect,
+            timestamp: new Date().toISOString()
+          };
+
+          setSessionStats(prev => {
+            const updated = {
+              ...prev,
+              hands: [...prev.hands, handStats],
+              currentHand: prev.currentHand + 1
+            };
+            const stats = loadStats();
+            if (!stats.sessions) stats.sessions = [];
+            const sessionIndex = stats.sessions.findIndex(
+              s => s.startTime === updated.startTime
+            );
+            if (sessionIndex >= 0) {
+              stats.sessions[sessionIndex] = updated;
+            } else {
+              stats.sessions.push(updated);
+            }
+            saveStats(stats);
+            return updated;
+          });
+
+          // Original checkAnswer logic
           if (isCorrect) {
             setStreak((prev) => prev + 1);
           } else {
@@ -600,6 +664,18 @@
           }
           nextSet();
         };
+
+        // Add cleanup on component unmount
+        React.useEffect(() => {
+          return () => {
+            const stats = loadStats();
+            const sessionIndex = stats.sessions.findIndex(s => s.startTime === sessionStats.startTime);
+            if (sessionIndex >= 0) {
+              stats.sessions[sessionIndex] = sessionStats;
+              saveStats(stats);
+            }
+          };
+        }, [sessionStats]);
 
         // Component render method
         return (
@@ -683,7 +759,7 @@
                           Current streak: {streak}
                         </p>
                       </div>
-                      <div className="mt-4">
+                      <div className="mt-4 flex justify-center gap-4">
                         <a
                           href="info.html"
                           className="reference-guide-button inline-flex items-center gap-2 px-6 py-3 text-gray-800 rounded-lg transition-all duration-200 group"
@@ -701,7 +777,36 @@
                             />
                           </svg>
                           <span className="font-semibold">
-                            PAO System Reference Guide
+                            PAO System Reference
+                          </span>
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            className="h-4 w-4 text-gray-400 group-hover:text-gray-600 transition-colors"
+                            viewBox="0 0 20 20"
+                            fill="currentColor"
+                          >
+                            <path
+                              fillRule="evenodd"
+                              d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z"
+                              clipRule="evenodd"
+                            />
+                          </svg>
+                        </a>
+
+                        <a
+                          href="stats.html"
+                          className="reference-guide-button inline-flex items-center gap-2 px-6 py-3 text-gray-800 rounded-lg transition-all duration-200 group"
+                        >
+                          <svg 
+                            xmlns="http://www.w3.org/2000/svg" 
+                            className="h-5 w-5 text-indigo-600" 
+                            viewBox="0 0 20 20" 
+                            fill="currentColor"
+                          >
+                            <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
+                          </svg>
+                          <span className="font-semibold">
+                            Training Stats
                           </span>
                           <svg
                             xmlns="http://www.w3.org/2000/svg"
@@ -717,6 +822,7 @@
                           </svg>
                         </a>
                       </div>
+
                     </div>
 
                     <SuitSelector />
