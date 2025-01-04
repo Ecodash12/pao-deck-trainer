@@ -1,86 +1,109 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>PAO Training Stats</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="styles.css">
-</head>
-<body class="bg-gray-100">
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body class="bg-gray-100">
     <div class="container mx-auto px-4 py-8">
-        <nav class="mb-8">
-            <a href="index.html" class="btn btn-primary inline-block">← Back to Trainer</a>
-        </nav>
+      <nav class="mb-8">
+        <a href="index.html" class="btn btn-primary inline-block"
+          >← Back to Trainer</a
+        >
+      </nav>
 
-        <div class="bg-white rounded-xl shadow-lg p-8">
-            <h1 class="text-3xl font-bold text-gray-800 mb-6">Training Statistics</h1>
-            
-            <div id="stats" class="space-y-8">
-                <!-- Stats will be inserted here -->
-            </div>
+      <div class="bg-white rounded-xl shadow-lg p-8">
+        <h1 class="text-3xl font-bold text-gray-800 mb-6">
+          Training Statistics
+        </h1>
+
+        <div id="stats" class="space-y-8">
+          <!-- Stats will be inserted here -->
         </div>
+      </div>
     </div>
 
     <script>
-        function formatDate(dateString) {
-            return new Date(dateString).toLocaleString();
+      function formatDate(dateString) {
+        return new Date(dateString).toLocaleString();
+      }
+
+      function sortTable(n, type) {
+        const table = document.getElementById("stats-body");
+        const rows = Array.from(table.getElementsByTagName("tr"));
+        let ascending =
+          table.getAttribute("data-sort-col") == n &&
+          table.getAttribute("data-sort-dir") == "asc";
+
+        rows.sort((a, b) => {
+          const tdA = a.getElementsByTagName("td")[n].innerText;
+          const tdB = b.getElementsByTagName("td")[n].innerText;
+
+          if (type === "date") {
+            return (new Date(tdA) - new Date(tdB)) * (ascending ? 1 : -1);
+          } else {
+            return tdA.localeCompare(tdB) * (ascending ? 1 : -1);
+          }
+        });
+
+        table.innerHTML = "";
+        rows.forEach((r) => table.appendChild(r));
+        table.setAttribute("data-sort-col", n);
+        table.setAttribute("data-sort-dir", ascending ? "desc" : "asc");
+      }
+
+      function renderStats() {
+        const statsDiv = document.getElementById("stats");
+        const stats = JSON.parse(
+          localStorage.getItem("paoTrainerStats") || '{"sessions": []}'
+        );
+
+        // Sort all hands in descending order by time
+        const allHands = stats.sessions
+          .reduce((acc, session) => {
+            return acc.concat(session.hands);
+          }, [])
+          .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+        if (!allHands.length) {
+          statsDiv.innerHTML =
+            '<p class="text-gray-500">No training sessions recorded yet.</p>';
+          return;
         }
 
-        function sortTable(n, type) {
-            const table = document.getElementById("stats-body");
-            const rows = Array.from(table.getElementsByTagName("tr"));
-            let ascending = table.getAttribute("data-sort-col") == n && table.getAttribute("data-sort-dir") == "asc";
+        const correctCount = allHands.filter((h) => h.isCorrect).length;
+        const incorrectCount = allHands.length - correctCount;
+        const correctRatio = Math.round((correctCount / allHands.length) * 100);
+        const totalHands = allHands.length; // total number of hands
 
-            rows.sort((a, b) => {
-                const tdA = a.getElementsByTagName("td")[n].innerText;
-                const tdB = b.getElementsByTagName("td")[n].innerText;
-
-                if (type === "date") {
-                    return (new Date(tdA) - new Date(tdB)) * (ascending ? 1 : -1);
-                } else {
-                    return tdA.localeCompare(tdB) * (ascending ? 1 : -1);
-                }
-            });
-
-            table.innerHTML = "";
-            rows.forEach(r => table.appendChild(r));
-            table.setAttribute("data-sort-col", n);
-            table.setAttribute("data-sort-dir", ascending ? "desc" : "asc");
+        let message = "";
+        let bgClass = "";
+        if (correctCount > incorrectCount) {
+          message = "Nice job, memory wizard!";
+          bgClass = "bg-green-100 border-green-400 text-green-800";
+        } else if (correctCount < incorrectCount) {
+          message = "Keep at it, you'll get there!";
+          bgClass = "bg-red-100 border-red-400 text-red-800";
+        } else {
+          message = "Perfectly balanced, as all things should be.";
+          bgClass = "bg-blue-100 border-blue-400 text-blue-800";
         }
 
-        function renderStats() {
-            const statsDiv = document.getElementById('stats');
-            const stats = JSON.parse(localStorage.getItem('paoTrainerStats') || '{"sessions": []}');
+        const statsString = localStorage.getItem("paoTrainerStats") || "";
+        const statsSize = new Blob([statsString]).size;
+        const MB = 1024 * 1024;
+        const approximateSizeMB = (statsSize / MB).toFixed(2);
 
-            // Sort all hands in descending order by time
-            const allHands = stats.sessions.reduce((acc, session) => {
-                return acc.concat(session.hands);
-            }, []).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        let sizeWarning = "";
+        if (approximateSizeMB > 8) {
+          sizeWarning =
+            '<p class="text-red-800 font-bold mt-2">Warning: Local storage is above 8 MB. Consider resetting the session.</p>';
+        }
 
-            if (!allHands.length) {
-                statsDiv.innerHTML = '<p class="text-gray-500">No training sessions recorded yet.</p>';
-                return;
-            }
-
-            const correctCount = allHands.filter(h => h.isCorrect).length;
-            const incorrectCount = allHands.length - correctCount;
-            const correctRatio = Math.round((correctCount / allHands.length) * 100);
-
-            let message = "";
-            let bgClass = "";
-            if (correctCount > incorrectCount) {
-                message = "Nice job, memory wizard!";
-                bgClass = "bg-green-100 border-green-400 text-green-800";
-            } else if (correctCount < incorrectCount) {
-                message = "Keep at it, you'll get there!";
-                bgClass = "bg-red-100 border-red-400 text-red-800";
-            } else {
-                message = "Perfectly balanced, as all things should be.";
-                bgClass = "bg-blue-100 border-blue-400 text-blue-800";
-            }
-
-            statsDiv.innerHTML = `
+        statsDiv.innerHTML = `
                 <div class="overflow-x-auto">
                     <table class="min-w-full">
                         <thead>
@@ -92,20 +115,36 @@
                             </tr>
                         </thead>
                         <tbody id="stats-body" data-sort-col="0" data-sort-dir="desc" class="divide-y divide-gray-200">
-                            ${allHands.map(hand => `
-                                <tr class="${hand.isCorrect ? 'bg-green-50' : 'bg-red-50'}">
-                                    <td class="px-4 py-2 text-sm text-gray-500">${new Date(hand.timestamp).toLocaleString()}</td>
-                                    <td class="px-4 py-2">${hand.cards.join(' → ')}</td>
+                            ${allHands
+                              .map(
+                                (hand) => `
+                                <tr class="${
+                                  hand.isCorrect ? "bg-green-50" : "bg-red-50"
+                                }">
+                                    <td class="px-4 py-2 text-sm text-gray-500">${new Date(
+                                      hand.timestamp
+                                    ).toLocaleString()}</td>
+                                    <td class="px-4 py-2">${hand.cards.join(
+                                      " → "
+                                    )}</td>
                                     <td class="px-4 py-2">${hand.scene}</td>
                                     <td class="px-4 py-2">
                                         <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                                            hand.isCorrect ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                                          hand.isCorrect
+                                            ? "bg-green-100 text-green-800"
+                                            : "bg-red-100 text-red-800"
                                         }">
-                                            ${hand.isCorrect ? '✓ Correct' : '✗ Incorrect'}
+                                            ${
+                                              hand.isCorrect
+                                                ? "✓ Correct"
+                                                : "✗ Incorrect"
+                                            }
                                         </span>
                                     </td>
                                 </tr>
-                            `).join('')}
+                            `
+                              )
+                              .join("")}
                         </tbody>
                     </table>
                 </div>
@@ -113,18 +152,21 @@
                     <p class="text-base mb-2">
                         Correct: ${correctCount}<br>
                         Incorrect: ${incorrectCount}<br>
-                        Correct Ratio: ${correctRatio}%
+                        Correct Ratio: ${correctRatio}%<br>
+                        Total Hands: ${totalHands}
                     </p>
                     <p class="font-semibold">${message}</p>
+                    
+                    ${sizeWarning}
                 </div>
             `;
-        }
+      }
 
-        // Initial render
-        renderStats();
+      // Initial render
+      renderStats();
 
-        // Update when storage changes
-        window.addEventListener('storage', renderStats);
+      // Update when storage changes
+      window.addEventListener("storage", renderStats);
     </script>
-</body>
+  </body>
 </html>
